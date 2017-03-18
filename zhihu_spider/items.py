@@ -31,3 +31,4 @@ class AnswerItem(scrapy.Item):
     content = scrapy.Field()
     upvote_num = scrapy.Field()
     timestamp = scrapy.Field()
+    user_name = scrapy.Field()

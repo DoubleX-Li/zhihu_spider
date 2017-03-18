@@ -46,15 +46,16 @@ ROBOTSTXT_OBEY = True
 
 # Enable or disable spider middlewares
 # See http://scrapy.readthedocs.org/en/latest/topics/spider-middleware.html
-#SPIDER_MIDDLEWARES = {
-#    'zhihu_spider.middlewares.ZhihuSpiderSpiderMiddleware': 543,
-#}
+# SPIDER_MIDDLEWARES = {
+   # 'zhihu_spider.middlewares.ZhihuSpiderSpiderMiddleware': 543,
+# }
 
 # Enable or disable downloader middlewares
 # See http://scrapy.readthedocs.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
+DOWNLOADER_MIDDLEWARES = {
 #    'zhihu_spider.middlewares.MyCustomDownloaderMiddleware': 543,
-#}
+    'zhihu_spider.middlewares.PhantomJSMiddleware': 200,
+}
 
 # Enable or disable extensions
 # See http://scrapy.readthedocs.org/en/latest/topics/extensions.html
@@ -92,3 +93,4 @@ ITEM_PIPELINES = {
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
 
 # DEPTH_LIMIT=100
+DOWNLOAD_DELAY = 3

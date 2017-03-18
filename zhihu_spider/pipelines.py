@@ -71,7 +71,8 @@ class AnswerPipeline(object):
                 item['detail'],
                 item['content'],
                 item['upvote_num'],
-                item['timestamp']
+                item['timestamp'],
+                item['user_name']
             )
             # answer.user_id = 1
             print('创建answer对象')

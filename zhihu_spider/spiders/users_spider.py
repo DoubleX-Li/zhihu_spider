@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-import scrapy
+import logging
 import os
 import time
+
+import scrapy
+
 from zhihu_spider.items import UserItem, AnswerItem
 from zhihu_spider.myconfig import UsersConfig  # 爬虫配置
 
+logging.basicConfig(filename='links.log',level=logging.INFO)
 
 class UsersSpider(scrapy.Spider):
     name = 'users'
@@ -87,26 +91,27 @@ class UsersSpider(scrapy.Spider):
                 'from': {
                     'sign': 'else',
                     'data': {}
-                }
+                },
+                'PhantomJS': True
             },
             callback=self.user_item,
             dont_filter=True
         )
 
-        yield scrapy.Request(
-            url=self.user_url + '/following',
-            headers=self.headers,
-            meta={
-                'proxy': UsersConfig['proxy'],
-                'cookiejar': response.meta['cookiejar'],
-                'from': {
-                    'sign': 'else',
-                    'data': {}
-                }
-            },
-            callback=self.user_start,
-            dont_filter=True
-        )
+        # yield scrapy.Request(
+        #     url=self.user_url + '/following',
+        #     headers=self.headers,
+        #     meta={
+        #         'proxy': UsersConfig['proxy'],
+        #         'cookiejar': response.meta['cookiejar'],
+        #         'from': {
+        #             'sign': 'else',
+        #             'data': {}
+        #         }
+        #     },
+        #     callback=self.user_start,
+        #     dont_filter=True
+        # )
 
         # yield scrapy.Request(
         #     url=self.user_url + '/followers',
@@ -221,6 +226,7 @@ class UsersSpider(scrapy.Spider):
         #     return list[0] if len(list) else ''
         # sel = response.xpath('//div[@class="zm-profile-header ProfileCard"]')
         # response_str = response.text.encode('utf-8')
+
         print('开始一波疯狂输出')
         item = UserItem()
         # url
@@ -280,7 +286,7 @@ class UsersSpider(scrapy.Spider):
             item['thanks'] = 0
         print('打印用户信息')
         print(item)
-        yield item
+        # yield item
 
 
 class AnswerSpider(scrapy.Spider):
@@ -296,13 +302,10 @@ class AnswerSpider(scrapy.Spider):
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.109 Safari/537.36"
     }
 
-    def __init__(self, url=None):
-        self.user_url = url
+    def __init__(self, user=None):
+        self.user_url = 'https://www.zhihu.com/people/{0}'.format(user)
 
     def start_requests(self):
-        # if os.path.isfile('cookiejar'):
-        #     with open('cookiejar', 'r') as f:
-        #         cookiejar = f.read()
         yield scrapy.Request(
             url=self.domain,
             headers=self.headers,
@@ -358,9 +361,8 @@ class AnswerSpider(scrapy.Spider):
         )
 
     def request_zhihu(self, response):
-
         yield scrapy.Request(
-            url=self.user_url + '/answers',
+            url='{0}/answers'.format(self.user_url),
             headers=self.headers,
             meta={
                 'proxy': UsersConfig['proxy'],
@@ -368,25 +370,40 @@ class AnswerSpider(scrapy.Spider):
                 'from': {
                     'sign': 'else',
                     'data': {}
-                }
+                },
+                'PhantomJS': True
             },
-            callback=self.answer_start,
+            callback=self.request_answer,
             dont_filter=True
         )
 
+    def request_answer(self,response):
+
+        total_page = response.xpath('//button[@class="Button PaginationButton Button--plain"][last()]/text()').extract()
+        # for i in range(1, 21):
+            # yield scrapy.Request(
+            #     url='{0}/answers?page={1}'.format(self.user_url, i),
+            #     headers=self.headers,
+            #     meta={
+            #         'proxy': UsersConfig['proxy'],
+            #         'cookiejar': response.meta['cookiejar'],
+            #         'from': {
+            #             'sign': 'else',
+            #             'data': {}
+            #         },
+            #         'PhantomJS': True
+            #     },
+            #     callback=self.answer_start,
+            #     dont_filter=True
+            # )
+
     def answer_start(self, response):
-        with open('response.txt', 'w',encoding='utf-8') as f:
-            f.write(response.text)
-        print(response)
-        total_page = response.xpath('//button[@class="Button PaginationButton Button--plain"][last()]/text()')
+
         url_list = response.xpath('//h2[@class="ContentItem-title"]/a/@href')
-        print('在{0}发现了以下链接:'.format(response.url))
-        print(len(url_list))
-        print(url_list)
+        logging.info('在{0}发现了以下链接:'.format(response.url))
         urls = [url.extract() for url in url_list]
-        print(urls)
         for url in urls:
-            print(url)
+            logging.info(url)
             if '/answer' in url:
                 yield scrapy.Request(
                     url='https://www.zhihu.com' + url,
@@ -404,30 +421,47 @@ class AnswerSpider(scrapy.Spider):
                 )
 
     def answer_item(self, response):
-        print('开始一波疯狂输出')
         item = AnswerItem()
+
         # url
         item['url'] = response.url
+
         # 标题
-        item['title'] = response.xpath('//h1[@class="QuestionHeader-title"]/text()')[0].extract()
+        try:
+            item['title'] = response.xpath('//h1[@class="QuestionHeader-title"]/text()')[0].extract()
+        except:
+            item['title'] = ''
+
         # 详细
-        item['detail'] = response.xpath('//div[@class="QuestionHeader-detail"]//span/text()')[0].extract()
+        try:
+            item['detail'] = response.xpath('//div[@class="QuestionHeader-detail"]//span/text()')[0].extract()
+        except:
+            item['detail'] = ''
+
         # 内容
-        results = response.xpath(
-            '//div[@class="QuestionAnswer-content"]//span[@class="RichText CopyrightRichText-richText"]/text()').extract()
-        info_list = ''
-        print(results)
-        print(len(results))
-        for result in results:
-            info_list += result
+        try:
+            result = response.xpath(
+                    '//div[@class="QuestionAnswer-content"]//span[@class="RichText CopyrightRichText-richText"]')
+            info = result.xpath('string(.)')[0].extract()
 
-        item['content'] = info_list
+            item['content'] = info
+        except:
+            item['content'] = ''
+
         # 赞
-        item['upvote_num'] = response.xpath(
-            '//div[@class="ContentItem-actions"]//button[@class="VoteButton VoteButton--up"]/text()')[0].extract()
-        # 时间
-        item['timestamp'] = response.xpath('//div[@class="ContentItem-time"]/a/span/@data-tooltip')[0].extract()
+        try:
+            item['upvote_num'] = response.xpath(
+                '//div[@class="ContentItem-actions"]//button[@class="VoteButton VoteButton--up"]/text()')[0].extract()
+        except:
+            item['upvote_num'] = ''
 
-        print('打印答案信息')
-        print(item)
+        # 时间
+        try:
+            item['timestamp'] = response.xpath('//div[@class="ContentItem-time"]/a/span/@data-tooltip')[0].extract()
+        except:
+            item['timestamp'] = ''
+
+        # user_name
+        item['user_name'] = response.xpath('//div[@class="QuestionAnswer-content"]//a[@class="UserLink-link"]/@href')[0].extract().split('/')[2]
+
         yield item

@@ -4,8 +4,14 @@
 #
 # See documentation in:
 # http://doc.scrapy.org/en/latest/topics/spider-middleware.html
+import logging
 
+import time
 from scrapy import signals
+from scrapy.http import HtmlResponse
+from selenium import webdriver
+
+from zhihu_spider.myconfig import PhantomJSConfig
 
 
 class ZhihuSpiderSpiderMiddleware(object):
@@ -54,3 +60,26 @@ class ZhihuSpiderSpiderMiddleware(object):
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
+
+
+class PhantomJSMiddleware(object):
+    @classmethod
+    def process_request(cls, request, spider):
+        # 睡1s等待页面加载完毕
+        time.sleep(1)
+        if 'PhantomJS' in request.meta:
+            driver = webdriver.PhantomJS(
+                executable_path=PhantomJSConfig['path'])
+            driver.set_window_size(1200, 900)
+            driver.get(request.url)
+            try:
+                more_profile = driver.find_element_by_xpath('//button[@class="Button ProfileHeader-expandButton Button--plain"]')
+                more_profile.click()
+                # 睡1s等待文字加载
+                time.sleep(1)
+            except:
+                pass
+            content = driver.page_source.encode('utf-8')
+            driver.save_screenshot("{0}.png".format(request.url))
+            driver.quit()
+            return HtmlResponse(request.url, encoding='utf-8', body=content, request=request)

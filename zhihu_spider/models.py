@@ -1,6 +1,5 @@
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
+from sqlalchemy import Column, Integer, String, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import relationship
 
 Base = declarative_base()
 
@@ -21,8 +20,6 @@ class User(Base):
     avatar = Column(String(255))
     agree = Column(Integer)
     thanks = Column(Integer)
-
-    # answers = relationship('answers', backref='author')
 
     def __init__(self, url, name, content, business, company, position, education, major, gender, avatar, agree,
                  thanks):
@@ -53,15 +50,16 @@ class Answer(Base):
     content = Column(Text)
     upvote_num = Column(Integer)
     timestamp = Column(String(255))
-    # user_id = Column(Integer, ForeignKey('users.id'))
+    user_name = Column(String(255))
 
-    def __init__(self, url, title, detail, content, upvote_num, timestamp):
+    def __init__(self, url, title, detail, content, upvote_num, timestamp, user_name):
         self.url = url
         self.title = title
         self.detail = detail
         self.content = content
         self.upvote_num = upvote_num
         self.timestamp = timestamp
+        self.user_name = user_name
 
     def __repr__(self):
         return 'Answer: %r' % self.url
