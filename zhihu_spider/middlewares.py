@@ -12,7 +12,7 @@ from scrapy import signals
 from scrapy.http import HtmlResponse
 from selenium import webdriver
 
-from zhihu_spider.myconfig import PhantomJSConfig, ImageConfig
+from zhihu_spider.myconfig import PhantomJSConfig, ImageConfig, ChromeConfig
 
 
 class ZhihuSpiderSpiderMiddleware(object):
@@ -69,9 +69,10 @@ class PhantomJSMiddleware(object):
         # 睡1s等待页面加载完毕
         time.sleep(1)
         if 'PhantomJS' in request.meta:
-            driver = webdriver.PhantomJS(
-                executable_path=PhantomJSConfig['path'])
-            driver.set_window_size(1200, 900)
+            # driver = webdriver.PhantomJS(
+            #     executable_path=PhantomJSConfig['path'])
+            driver = webdriver.Chrome(executable_path=ChromeConfig['path'])
+            # driver.set_window_size(1200, 900)
             driver.get(request.url)
 
             # 点击“查看详细资料”按钮

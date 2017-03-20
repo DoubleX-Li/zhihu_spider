@@ -4,8 +4,8 @@ UsersConfig = {
     'proxy': '',
 
     # 知乎用户名和密码
-    'email': 'your_email',
-    'password': 'your_password',
+    'email': 'zhihu@doublex.li',
+    'password': 'Zh445120558%',
 }
 
 DbConfig = {
@@ -18,6 +18,10 @@ DbConfig = {
 
 PhantomJSConfig = {
     'path': r'D:\Program Files (x86)\GreenSoftware\phantomjs-2.1.1-windows\bin\phantomjs.exe'
+}
+
+ChromeConfig = {
+    'path': './chromedriver.exe'
 }
 
 ImageConfig = {
