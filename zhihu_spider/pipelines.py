@@ -7,7 +7,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from zhihu_spider.models import Base, User, Answer
+from zhihu_spider.models import Base, User, Answer, Following
 
 
 # class ZhihuSpiderPipeline(object):
@@ -22,29 +22,39 @@ class UserPipeline(object):
         self.session = SessionCls()
 
     def process_item(self, item, spider):
-        temp = self.session.query(User).filter(User.url == item['url']).first()
-        if temp:
-            pass
-        else:
+        if item['type'] == 'user':
+            temp = self.session.query(User).filter(User.uid == item['uid']).first()
+            if temp:
+                pass
+            else:
+                try:
+                    user = User(
+                        item['uid'],
+                        item['name'],
+                        item['content'],
+                        item['location'],
+                        item['business'],
+                        item['company'],
+                        item['education'],
+                        item['motto'],
+                        item['avatar'],
+                        item['agree']
+                    )
+                    print('创建user对象')
+                    print(user)
+                    self.session.add(user)
+                    self.session.commit()
+                except Exception as e:
+                    print(e)
+        elif item['type'] == 'following':
             try:
-                user = User(
-                    item['url'],
-                    item['name'],
-                    item['content'],
-                    item['business'],
-                    item['company'],
-                    item['position'],
-                    item['education'],
-                    item['major'],
-                    item['gender'],
-                    # 0,
-                    item['avatar'],
-                    item['agree'],
-                    item['thanks']
+                following = Following(
+                    item['uid'],
+                    item['followed_by']
                 )
-                print('创建user对象')
-                print(user)
-                self.session.add(user)
+                print('创建following对象')
+                print(following)
+                self.session.add(following)
                 self.session.commit()
             except Exception as e:
                 print(e)
@@ -60,10 +70,6 @@ class AnswerPipeline(object):
         self.session = SessionCls()
 
     def process_item(self, item, spider):
-        # temp = self.session.query(Answer).filter(User.url==item['url']).first()
-        # if temp:
-        #     pass
-        # else:
         try:
             answer = Answer(
                 item['url'],

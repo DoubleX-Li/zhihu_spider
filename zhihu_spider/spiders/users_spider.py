@@ -5,10 +5,17 @@ import time
 
 import scrapy
 
-from zhihu_spider.items import UserItem, AnswerItem
+from zhihu_spider.items import UserItem, AnswerItem, FollowingItem
 from zhihu_spider.myconfig import UsersConfig  # 爬虫配置
 
-logging.basicConfig(filename='links.log',level=logging.INFO)
+logging.basicConfig(filename='links.log', level=logging.INFO)
+
+
+def findUsername(url):
+    urlParts = url.split('/')
+    indexOfPeople = urlParts.index('people')
+    return urlParts[indexOfPeople + 1]
+
 
 class UsersSpider(scrapy.Spider):
     name = 'users'
@@ -23,18 +30,27 @@ class UsersSpider(scrapy.Spider):
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_3) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/48.0.2564.109 Safari/537.36"
     }
 
-    def __init__(self, url=None):
-        self.user_url = url
+    def __init__(self, user=None):
+        self.user_url = 'https://www.zhihu.com/people/{0}'.format(user)
 
     def start_requests(self):
+        # yield scrapy.Request(
+        #     url=self.domain,
+        #     headers=self.headers,
+        #     meta={
+        #         'proxy': UsersConfig['proxy'],
+        #         'cookiejar': 1
+        #     },
+        #     callback=self.request_captcha
+        # )
         yield scrapy.Request(
-            url=self.domain,
+            url=self.user_url,
             headers=self.headers,
             meta={
                 'proxy': UsersConfig['proxy'],
                 'cookiejar': 1
             },
-            callback=self.request_captcha
+            callback=self.request_zhihu
         )
 
     def request_captcha(self, response):
@@ -82,8 +98,24 @@ class UsersSpider(scrapy.Spider):
         )
 
     def request_zhihu(self, response):
+        # yield scrapy.Request(
+        #     url=self.user_url + '/activities',
+        #     headers=self.headers,
+        #     meta={
+        #         'proxy': UsersConfig['proxy'],
+        #         'cookiejar': response.meta['cookiejar'],
+        #         'from': {
+        #             'sign': 'else',
+        #             'data': {}
+        #         },
+        #         'PhantomJS': True
+        #     },
+        #     callback=self.user_item,
+        #     dont_filter=True
+        # )
+
         yield scrapy.Request(
-            url=self.user_url + '/activities',
+            url=self.user_url + '/following',
             headers=self.headers,
             meta={
                 'proxy': UsersConfig['proxy'],
@@ -94,24 +126,9 @@ class UsersSpider(scrapy.Spider):
                 },
                 'PhantomJS': True
             },
-            callback=self.user_item,
+            callback=self.user_start,
             dont_filter=True
         )
-
-        # yield scrapy.Request(
-        #     url=self.user_url + '/following',
-        #     headers=self.headers,
-        #     meta={
-        #         'proxy': UsersConfig['proxy'],
-        #         'cookiejar': response.meta['cookiejar'],
-        #         'from': {
-        #             'sign': 'else',
-        #             'data': {}
-        #         }
-        #     },
-        #     callback=self.user_start,
-        #     dont_filter=True
-        # )
 
         # yield scrapy.Request(
         #     url=self.user_url + '/followers',
@@ -129,29 +146,120 @@ class UsersSpider(scrapy.Spider):
         # )
 
     def user_start(self, response):
-        url_list = response.xpath('//div[@class="ContentItem-head"]//a/@href')
+        # 获取个人信息
+        item = UserItem()
+        item['type'] = 'user'
+
+        # 用户名
+        urlParts = response.url.split('/')
+        indexOfPeople = urlParts.index('people')
+        item['uid'] = urlParts[indexOfPeople + 1]
+
+        # 姓名
+        item['name'] = response.xpath('//span[@class="ProfileHeader-name"]/text()')[0].extract()
+
+        # 头像
+        item['avatar'] = response.xpath('//div[@class="UserAvatar ProfileHeader-avatar"]/img/@src')[0].extract()
+
+        # 简介
+        try:
+            item['motto'] = response.xpath('//span[@class="RichText ProfileHeader-headline"]/text()')[0].extract()
+        except:
+            item['motto'] = ''
+
+        # 赞同数
+        try:
+            item['agree'] = int(
+                response.xpath('//svg[@class="Icon IconGraf-icon Icon--like"]/../../text()[2]')[0].extract())
+        except:
+            item['agree'] = 0
+
+        # 详细信息部分
+        profileItems = response.xpath('//div[@class="ProfileHeader-detail"]//div[@class="ProfileHeader-detailItem"]')
+        for profileItem in profileItems:
+            lable = profileItem.xpath('./span[@class="ProfileHeader-detailLabel"]/text()')[0].extract()
+            if lable == '居住地':
+                item['location'] = ''.join(
+                    profileItem.xpath('./div[@class="ProfileHeader-detailValue"]/span/text()').extract())
+            elif lable == '所在行业':
+                item['business'] = profileItem.xpath('./div[@class="ProfileHeader-detailValue"]/text()')[0].extract()
+            elif lable == '职业经历':
+                item['company'] = ''.join(profileItem.xpath(
+                    './div[@class="ProfileHeader-detailValue"]/div[@class="ProfileHeader-field"]/text()').extract())
+            elif lable == '教育经历':
+                item['education'] = ''.join(profileItem.xpath(
+                    './div[@class="ProfileHeader-detailValue"]/div[@class="ProfileHeader-field"]/text()').extract())
+            elif lable == '个人简介':
+                item['content'] = ''.join(
+                    profileItem.xpath('./div[@class="RichText ProfileHeader-detailValue"]/text()').extract())
+
+        yield item
+
+        # 获取关注的人的信息
+        # 获取关注页数
+        try:
+            totalPageNum = int(
+                response.xpath('//button[@class="Button PaginationButton Button--plain"][last()]/text()'))
+        except:
+            totalPageNum = 1
+
+        for i in range(1, totalPageNum + 1):
+            yield scrapy.Request(
+                url='{0}?page={1}'.format(response.url, i),
+                headers=self.headers,
+                meta={
+                    'proxy': UsersConfig['proxy'],
+                    'cookiejar': response.meta['cookiejar'],
+                    'from': {
+                        'sign': 'else',
+                        'data': {}
+                    },
+                    'PhantomJS': True
+                },
+                callback=self.parse_following,
+                dont_filter=True
+            )
+
+    def parse_following(self, response):
+        # 获取当前用户名称
+        username = findUsername(response.url)
+
+        # 获取本页的关注的人的地址
+        url_list = response.xpath('//div[@class="ContentItem-head"]//a[@class="UserLink-link"]/@href')
+
+        # 本页人数少于10，忽略
+        if len(url_list) < 10:
+            return
+
         print('在{0}发现了以下链接'.format(response.url))
         urls = [url.extract() for url in url_list]
         print(urls)
-        for url in url_list:
-            if '/people' in url.extract():
-                yield scrapy.Request(
-                    url='https://www.zhihu.com' + url.extract() + '/activities',
-                    headers=self.headers,
-                    meta={
-                        'proxy': UsersConfig['proxy'],
-                        'cookiejar': response.meta['cookiejar'],
-                        'from': {
-                            'sign': 'else',
-                            'data': {}
-                        }
-                    },
-                    callback=self.user_item,
-                    dont_filter=True
-                )
+        for url in urls:
+            if '/people' in url:
+                item = FollowingItem()
+                item['type'] = 'following'
+                item['uid'] = findUsername(url)
+                item['followed_by'] = username
+                yield item
+
+                # yield scrapy.Request(
+                #     url='https://www.zhihu.com{0}/activities'.format(url),
+                #     headers=self.headers,
+                #     meta={
+                #         'proxy': UsersConfig['proxy'],
+                #         'cookiejar': response.meta['cookiejar'],
+                #         'from': {
+                #             'sign': 'else',
+                #             'data': {}
+                #         },
+                #         'PhantomJS': True
+                #     },
+                #     callback=self.user_item,
+                #     dont_filter=True
+                # )
 
                 yield scrapy.Request(
-                    url='https://www.zhihu.com' + url.extract() + '/following',
+                    url='https://www.zhihu.com{0}/following'.format(url),
                     headers=self.headers,
                     meta={
                         'proxy': UsersConfig['proxy'],
@@ -159,7 +267,8 @@ class UsersSpider(scrapy.Spider):
                         'from': {
                             'sign': 'else',
                             'data': {}
-                        }
+                        },
+                        'PhantomJS': True
                     },
                     callback=self.user_start,
                     dont_filter=True
@@ -221,72 +330,55 @@ class UsersSpider(scrapy.Spider):
                 #         #     dont_filter=True
                 #         # )
 
-    def user_item(self, response):
-        # def value(list):
-        #     return list[0] if len(list) else ''
-        # sel = response.xpath('//div[@class="zm-profile-header ProfileCard"]')
-        # response_str = response.text.encode('utf-8')
-
-        print('开始一波疯狂输出')
-        item = UserItem()
-        # url
-        item['url'] = response.url
-        # 姓名
-        item['name'] = response.xpath('//span[@class="ProfileHeader-name"]/text()')[0].extract()
-        # 简介
-        try:
-            item['content'] = response.xpath('//span[@class="RichText ProfileHeader-headline"]/text()')[0].extract()
-        except:
-            item['content'] = ''
-            # 行业
-        try:
-            item['business'] = response.xpath('//div[@class="ProfileHeader-infoItem"][1]/text()[1]')[0].extract()
-        except:
-            item['business'] = ''
-        # 公司
-        try:
-            item['company'] = response.xpath('//div[@class="ProfileHeader-infoItem"][1]/text()[2]')[0].extract()
-        except:
-            item['company'] = ''
-        # 职位
-        try:
-            item['position'] = response.xpath('//div[@class="ProfileHeader-infoItem"][1]/text()[3]')[0].extract()
-        except:
-            item['position'] = ''
-        # 学校
-        try:
-            item['education'] = response.xpath('//div[@class="ProfileHeader-infoItem"][2]/text()[1]')[0].extract()
-        except:
-            item['education'] = ''
-        # 专业
-        try:
-            item['major'] = response.xpath('//div[@class="ProfileHeader-infoItem"][2]/text()[2]')[0].extract()
-        except:
-            item['major'] = ''
-        # 性别,还有些问题
-        try:
-            item['gender'] = 0 if response.xpath('//svg[contains(@class, "Icon Icon--female")]') else 1
-        except:
-            item['gender'] = 1
-        # 头像
-        if len(response.xpath('//div[@class="UserAvatar ProfileHeader-avatar"]/img/@src')):
-            item['avatar'] = response.xpath('//div[@class="UserAvatar ProfileHeader-avatar"]/img/@src')[0].extract()
-        # 赞同
-        try:
-            print('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
-            print(response.xpath('//div[@class="IconGraf"]/text()[2]')[0].extract())
-            item['agree'] = int(response.xpath('//div[@class="IconGraf"]/text()[2]')[0].extract())
-        except:
-            item['agree'] = 0
-        # 感谢
-        try:
-            item['thanks'] = int(
-                response.xpath('//div[@class="Profile-sideColumnItemValue"]/text()[1]')[0].extract().split(' ')[1])
-        except:
-            item['thanks'] = 0
-        print('打印用户信息')
-        print(item)
-        # yield item
+    # def user_item(self, response):
+    #
+    #     item = UserItem()
+    #     item['type'] = 'user'
+    #
+    #     # 用户名
+    #     urlParts = response.url.split('/')
+    #     indexOfPeople = urlParts.index('people')
+    #     item['uid'] = urlParts[indexOfPeople + 1]
+    #
+    #     # 姓名
+    #     item['name'] = response.xpath('//span[@class="ProfileHeader-name"]/text()')[0].extract()
+    #
+    #     # 头像
+    #     item['avatar'] = response.xpath('//div[@class="UserAvatar ProfileHeader-avatar"]/img/@src')[0].extract()
+    #
+    #     # 简介
+    #     try:
+    #         item['motto'] = response.xpath('//span[@class="RichText ProfileHeader-headline"]/text()')[0].extract()
+    #     except:
+    #         item['motto'] = ''
+    #
+    #     # 赞同数
+    #     try:
+    #         item['agree'] = int(
+    #             response.xpath('//svg[@class="Icon IconGraf-icon Icon--like"]/../../text()[2]')[0].extract())
+    #     except:
+    #         item['agree'] = 0
+    #
+    #     # 详细信息部分
+    #     profileItems = response.xpath('//div[@class="ProfileHeader-detail"]//div[@class="ProfileHeader-detailItem"]')
+    #     for profileItem in profileItems:
+    #         lable = profileItem.xpath('./span[@class="ProfileHeader-detailLabel"]/text()')[0].extract()
+    #         if lable == '居住地':
+    #             item['location'] = ''.join(
+    #                 profileItem.xpath('./div[@class="ProfileHeader-detailValue"]/span/text()').extract())
+    #         elif lable == '所在行业':
+    #             item['business'] = profileItem.xpath('./div[@class="ProfileHeader-detailValue"]/text()')[0].extract()
+    #         elif lable == '职业经历':
+    #             item['company'] = ''.join(profileItem.xpath(
+    #                 './div[@class="ProfileHeader-detailValue"]/div[@class="ProfileHeader-field"]/text()').extract())
+    #         elif lable == '教育经历':
+    #             item['education'] = ''.join(profileItem.xpath(
+    #                 './div[@class="ProfileHeader-detailValue"]/div[@class="ProfileHeader-field"]/text()').extract())
+    #         elif lable == '个人简介':
+    #             item['content'] = ''.join(
+    #                 profileItem.xpath('./div[@class="RichText ProfileHeader-detailValue"]/text()').extract())
+    #
+    #     yield item
 
 
 class AnswerSpider(scrapy.Spider):
@@ -377,25 +469,26 @@ class AnswerSpider(scrapy.Spider):
             dont_filter=True
         )
 
-    def request_answer(self,response):
+    def request_answer(self, response):
 
         total_page = response.xpath('//button[@class="Button PaginationButton Button--plain"][last()]/text()').extract()
-        # for i in range(1, 21):
-            # yield scrapy.Request(
-            #     url='{0}/answers?page={1}'.format(self.user_url, i),
-            #     headers=self.headers,
-            #     meta={
-            #         'proxy': UsersConfig['proxy'],
-            #         'cookiejar': response.meta['cookiejar'],
-            #         'from': {
-            #             'sign': 'else',
-            #             'data': {}
-            #         },
-            #         'PhantomJS': True
-            #     },
-            #     callback=self.answer_start,
-            #     dont_filter=True
-            # )
+        end = total_page if total_page <= 20 else 20
+        for i in range(1, end + 1):
+            yield scrapy.Request(
+                url='{0}/answers?page={1}'.format(self.user_url, i),
+                headers=self.headers,
+                meta={
+                    'proxy': UsersConfig['proxy'],
+                    'cookiejar': response.meta['cookiejar'],
+                    'from': {
+                        'sign': 'else',
+                        'data': {}
+                    },
+                    'PhantomJS': True
+                },
+                callback=self.answer_start,
+                dont_filter=True
+            )
 
     def answer_start(self, response):
 
@@ -441,7 +534,7 @@ class AnswerSpider(scrapy.Spider):
         # 内容
         try:
             result = response.xpath(
-                    '//div[@class="QuestionAnswer-content"]//span[@class="RichText CopyrightRichText-richText"]')
+                '//div[@class="QuestionAnswer-content"]//span[@class="RichText CopyrightRichText-richText"]')
             info = result.xpath('string(.)')[0].extract()
 
             item['content'] = info
@@ -462,6 +555,9 @@ class AnswerSpider(scrapy.Spider):
             item['timestamp'] = ''
 
         # user_name
-        item['user_name'] = response.xpath('//div[@class="QuestionAnswer-content"]//a[@class="UserLink-link"]/@href')[0].extract().split('/')[2]
+        item['user_name'] = \
+            response.xpath('//div[@class="QuestionAnswer-content"]//a[@class="UserLink-link"]/@href')[
+                0].extract().split(
+                '/')[2]
 
         yield item

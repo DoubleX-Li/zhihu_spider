@@ -19,3 +19,7 @@ DbConfig = {
 PhantomJSConfig = {
     'path': r'D:\Program Files (x86)\GreenSoftware\phantomjs-2.1.1-windows\bin\phantomjs.exe'
 }
+
+ImageConfig = {
+    'path': 'D:\\zhihu_images'
+}

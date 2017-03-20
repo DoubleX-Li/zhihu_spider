@@ -10,18 +10,17 @@ import scrapy
 
 class UserItem(scrapy.Item):
     # define the fields for your item here like:
-    url = scrapy.Field()
-    name = scrapy.Field()
-    content = scrapy.Field()
-    business = scrapy.Field()
-    company = scrapy.Field()
-    position = scrapy.Field()
-    education = scrapy.Field()
-    major = scrapy.Field()
-    gender = scrapy.Field()
-    avatar = scrapy.Field()
-    agree = scrapy.Field()
-    thanks = scrapy.Field()
+    uid = scrapy.Field()            # 用户名
+    name = scrapy.Field()           # 昵称
+    motto = scrapy.Field()          # 签名
+    location = scrapy.Field()       # 居住地
+    business = scrapy.Field()       # 行业
+    company = scrapy.Field()        # 职业信息
+    education = scrapy.Field()      # 教育信息
+    content = scrapy.Field()        # 个人简介
+    avatar = scrapy.Field()         # 头像
+    agree = scrapy.Field()          # 赞同
+    type = scrapy.Field()           # item类型
 
 
 class AnswerItem(scrapy.Item):
@@ -32,3 +31,8 @@ class AnswerItem(scrapy.Item):
     upvote_num = scrapy.Field()
     timestamp = scrapy.Field()
     user_name = scrapy.Field()
+
+class FollowingItem(scrapy.Item):
+    uid = scrapy.Field()            # 用户名
+    followed_by = scrapy.Field()    # 被某人关注
+    type = scrapy.Field()           # item类型

@@ -8,36 +8,46 @@ class User(Base):
     __tablename__ = 'users'
 
     id = Column(Integer, primary_key=True)
-    url = Column(String(255))
+    uid = Column(String(255))
     name = Column(String(20))
-    content = Column(String(255))
+    motto = Column(String(255))
+    location = Column(String(255))
     business = Column(String(255))
     company = Column(String(255))
-    position = Column(String(255))
     education = Column(String(255))
-    major = Column(String(255))
-    gender = Column(Integer)
+    content = Column(String(255))
     avatar = Column(String(255))
     agree = Column(Integer)
-    thanks = Column(Integer)
 
-    def __init__(self, url, name, content, business, company, position, education, major, gender, avatar, agree,
-                 thanks):
-        self.url = url
+    def __init__(self, uid, name, content, location, business, company, education, motto, avatar, agree):
+        self.uid = uid
         self.name = name
         self.content = content
+        self.location = location
         self.business = business
         self.company = company
-        self.position = position
         self.education = education
-        self.major = major
-        self.gender = gender
+        self.motto = motto
         self.avatar = avatar
         self.agree = agree
-        self.thanks = thanks
 
     def __repr__(self):
-        return 'User: %r' % self.name
+        return 'User: %r' % self.uid
+
+
+class Following(Base):
+    __tablename__ = 'following'
+
+    id = Column(Integer, primary_key=True)
+    uid = Column(String(255))
+    followed_by = Column(String(255))
+
+    def __init__(self, uid, followed_by):
+        self.uid = uid
+        self.followed_by = followed_by
+
+    def __repr__(self):
+        return '{0} --> {1}'.format(self.followed_by, self.uid)
 
 
 class Answer(Base):

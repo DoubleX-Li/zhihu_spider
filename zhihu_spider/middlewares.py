@@ -5,13 +5,14 @@
 # See documentation in:
 # http://doc.scrapy.org/en/latest/topics/spider-middleware.html
 import logging
+import os
 
 import time
 from scrapy import signals
 from scrapy.http import HtmlResponse
 from selenium import webdriver
 
-from zhihu_spider.myconfig import PhantomJSConfig
+from zhihu_spider.myconfig import PhantomJSConfig, ImageConfig
 
 
 class ZhihuSpiderSpiderMiddleware(object):
@@ -72,14 +73,30 @@ class PhantomJSMiddleware(object):
                 executable_path=PhantomJSConfig['path'])
             driver.set_window_size(1200, 900)
             driver.get(request.url)
+
+            # 点击“查看详细资料”按钮
             try:
-                more_profile = driver.find_element_by_xpath('//button[@class="Button ProfileHeader-expandButton Button--plain"]')
+                more_profile = driver.find_element_by_xpath(
+                    '//button[@class="Button ProfileHeader-expandButton Button--plain"]')
                 more_profile.click()
                 # 睡1s等待文字加载
                 time.sleep(1)
             except:
                 pass
+
+
             content = driver.page_source.encode('utf-8')
-            driver.save_screenshot("{0}.png".format(request.url))
+
+            # # 保存当前页面截图
+            # urlParts = request.url.split('/')
+            # indexOfPeople = urlParts.index('people')
+            # image_folder = ImageConfig['path']
+            # image_name = os.path.join(image_folder, '{0}_{1}.png'.format(urlParts[indexOfPeople + 1], urlParts[-1]))
+            #
+            # # 不存在则创建截图
+            # if not os.path.isfile(image_name):
+            #     print('Save page to image: {0}'.format(image_name))
+            #     driver.save_screenshot(image_name)
+
             driver.quit()
             return HtmlResponse(request.url, encoding='utf-8', body=content, request=request)
